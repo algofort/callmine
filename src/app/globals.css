@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Smooth theme transition */
+html {
+    transition: background-color 200ms ease, color 200ms ease;
+}
+
+/* Native <select>: reserve room on the right so the OS dropdown arrow never
+   overlaps the text. Unlayered so it wins over Tailwind's px-* utilities
+   (which set padding-right). Multi/size selects keep their own padding. */
+select:not([multiple]):not([size]) {
+    padding-right: 2rem;
+}
+
+/* Sleek branded sidebar scrollbar (dark ink sidebar) */
+.sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+.sidebar-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+    transition: background-color 150ms ease;
+}
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(138, 103, 242, 0.55);
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(138, 103, 242, 0.85);
+}
+/* fade top/bottom edges so the list doesn't hard-cut under scroll */
+.sidebar-fade {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+body {
+    @apply bg-white dark:bg-neutral-900 text-black dark:text-neutral-100;
+}
+
+/* Neutralize browser autofill background so it doesn't paint a box over
+   transparent/underline inputs (auth pages), and force a readable text color
+   per theme (currentColor is unreliable on autofilled fields across theme toggle). */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+    -webkit-text-fill-color: #171717; /* neutral-900 */
+    caret-color: #171717;
+    /* Delay the autofill background paint indefinitely so the field stays transparent. */
+    transition: background-color 99999s ease-in-out 0s;
+}
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active {
+    -webkit-text-fill-color: #f5f5f5; /* neutral-100 */
+    caret-color: #f5f5f5;
+}
+
+@layer components {
+    .card {
+        @apply bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-sm dark:shadow-none;
+    }
+    .sidebar {
+        @apply bg-gray-50 dark:bg-neutral-950;
+    }
+    .topbar {
+        @apply bg-white/80 dark:bg-neutral-900/80 backdrop-blur;
+    }
+
+    /* Dark mode: ensure all form controls have visible text and background.
+       `.auth-field` opts out so custom (transparent / underline) inputs keep their own styling. */
+    .dark input:not([type="checkbox"]):not([type="radio"]):not(.auth-field),
+    .dark select,
+    .dark textarea {
+        @apply bg-neutral-800 border-neutral-600 text-neutral-100 placeholder-neutral-500;
+    }
+    .dark input:not(.auth-field):focus,
+    .dark select:focus,
+    .dark textarea:focus {
+        @apply border-brand-500 ring-brand-500/20;
+    }
+}
+
+/* Dark mode: checkbox/radio accent for visibility */
+.dark input[type="checkbox"],
+.dark input[type="radio"] {
+    @apply accent-brand-500;
+}
+
+/* RTL: logical spacing where needed (Tailwind rtl: variant used in components) */
+[dir="rtl"] .text-left {
+    text-align: right;
+}
+[dir="rtl"] .text-right {
+    text-align: left;
+}
+/* Keep numbers/codes LTR in RTL layout */
+[dir="rtl"] .ltr-inline {
+    direction: ltr;
+    unicode-bidi: embed;
+}

@@ -1,0 +1,20 @@
+[Unit]
+Description=CallMineAI campaign scheduler
+After=network-online.target callmine-app.service
+Wants=network-online.target callmine-app.service
+
+[Service]
+Type=simple
+User=callmine
+Group=callmine
+WorkingDirectory=/opt/callmine
+EnvironmentFile=/opt/callmine/.env
+ExecStart=/usr/bin/node /opt/callmine/scripts/worker.mjs
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

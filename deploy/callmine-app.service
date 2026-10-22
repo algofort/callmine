@@ -1,0 +1,19 @@
+[Unit]
+Description=CallMineAI Next.js application
+After=network.target mariadb.service
+
+[Service]
+Type=simple
+User=callmine
+Group=callmine
+WorkingDirectory=/opt/callmine
+EnvironmentFile=/opt/callmine/.env
+ExecStart=/usr/bin/node /opt/callmine/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

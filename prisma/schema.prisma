@@ -1,0 +1,1723 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model AdminRole {
+  admin_user_id BigInt    @db.UnsignedBigInt
+  role_id       BigInt    @db.UnsignedBigInt
+  admin_users   AdminUser @relation(fields: [admin_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "admin_role_admin_user_id_foreign")
+  roles         Role      @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "admin_role_role_id_foreign")
+
+  @@id([admin_user_id, role_id])
+  @@index([role_id], map: "admin_role_role_id_foreign")
+  @@map("admin_role")
+}
+
+model AdminUser {
+  id                   BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  name                 String               @db.VarChar(255)
+  email                String               @unique(map: "admin_users_email_unique") @db.VarChar(255)
+  password             String               @db.VarChar(255)
+  status               String               @default("ACTIVE") @db.VarChar(20)
+  remember_token       String?              @db.VarChar(100)
+  created_at           DateTime?            @db.Timestamp(0)
+  updated_at           DateTime?            @db.Timestamp(0)
+  admin_role           AdminRole[]
+  audit_logs           AuditLog[]
+  client_subscriptions ClientSubscription[]
+  credit_ledger        CreditLedger[]
+  kyc_documents        KycDocument[]
+  notifications        Notification[]
+
+  @@map("admin_users")
+}
+
+model Agent {
+  id                    BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id             BigInt              @db.UnsignedBigInt
+  user_id               BigInt?             @db.UnsignedBigInt
+  name                  String              @db.VarChar(255)
+  voice_id              BigInt?             @db.UnsignedBigInt
+  language              String              @default("en") @db.VarChar(16)
+  llm_model             String              @default("gpt-4o-mini") @db.VarChar(64)
+  engine                String              @default("elevenlabs_twilio") @db.VarChar(40)
+  temperature           Decimal             @default(0.7) @db.Decimal(2, 1)
+  tone                  String?             @db.VarChar(64)
+  personality           String?             @db.VarChar(64)
+  system_prompt         String?             @db.LongText
+  greeting              String?             @db.Text
+  status                String              @default("draft") @db.VarChar(32)
+  elevenlabs_agent_id   String?             @db.VarChar(255)
+  cost_per_minute_cents Int                 @default(107) @db.UnsignedInt
+  meta                  Json?
+  created_at            DateTime?           @db.Timestamp(0)
+  updated_at            DateTime?           @db.Timestamp(0)
+  deleted_at            DateTime?           @db.Timestamp(0)
+  clients               Client              @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "agents_client_id_foreign")
+  users                 User?               @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "agents_user_id_foreign")
+  voices                Voice?              @relation(fields: [voice_id], references: [id], onUpdate: NoAction, map: "agents_voice_id_foreign")
+  appointments          Appointment[]
+  call_queue_jobs       CallQueueJob[]
+  calls                 Call[]
+  campaigns             Campaign[]
+  inbound_routes        InboundRoute[]
+  knowledge_base_items  KnowledgeBaseItem[]
+  phone_numbers         PhoneNumber[]
+  website_widgets       WebsiteWidget[]
+
+  @@index([client_id, status], map: "agents_client_status_idx")
+  @@index([user_id], map: "agents_user_id_foreign")
+  @@index([voice_id], map: "agents_voice_id_foreign")
+  @@map("agents")
+}
+
+model AiRequest {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id      BigInt    @db.UnsignedBigInt
+  website_id   BigInt?   @db.UnsignedBigInt
+  step         String?   @db.VarChar(64)
+  prompt       String?   @db.Text
+  response     String?   @db.LongText
+  tokens_used  Int       @default(0) @db.UnsignedInt
+  cost         Decimal   @default(0.000000) @db.Decimal(10, 6)
+  credits_used Int       @default(1) @db.UnsignedInt
+  status       String    @default("pending") @db.VarChar(32)
+  job_id       String?   @db.VarChar(64)
+  created_at   DateTime? @db.Timestamp(0)
+  updated_at   DateTime? @db.Timestamp(0)
+  users        User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "ai_requests_user_id_foreign")
+  websites     Website?  @relation(fields: [website_id], references: [id], onUpdate: NoAction, map: "ai_requests_website_id_foreign")
+
+  @@index([job_id], map: "ai_requests_job_id_index")
+  @@index([user_id, created_at], map: "ai_requests_user_id_created_at_index")
+  @@index([website_id], map: "ai_requests_website_id_foreign")
+  @@map("ai_requests")
+}
+
+model ApiAuditLog {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  api_key_id  BigInt?   @db.UnsignedBigInt
+  client_id   BigInt?   @db.UnsignedBigInt
+  method      String    @db.VarChar(8)
+  path        String    @db.VarChar(255)
+  status_code Int?      @db.UnsignedSmallInt
+  ip          String?   @db.VarChar(45)
+  duration_ms Int?      @db.UnsignedInt
+  request_id  String?   @db.VarChar(36)
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+  api_keys    ApiKey?   @relation(fields: [api_key_id], references: [id], onUpdate: NoAction, map: "api_audit_logs_api_key_id_foreign")
+  clients     Client?   @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "api_audit_logs_client_id_foreign")
+
+  @@index([api_key_id], map: "api_audit_logs_api_key_id_foreign")
+  @@index([client_id, created_at], map: "api_audit_logs_client_id_created_at_index")
+  @@map("api_audit_logs")
+}
+
+model ApiKey {
+  id                 BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id          BigInt        @db.UnsignedBigInt
+  name               String        @db.VarChar(255)
+  prefix             String        @unique(map: "api_keys_prefix_unique") @db.VarChar(16)
+  key_hash           String        @db.VarChar(255)
+  scopes             Json?
+  ip_whitelist       Json?
+  rate_limit_per_min Int           @default(100) @db.UnsignedInt
+  last_used_at       DateTime?     @db.Timestamp(0)
+  expires_at         DateTime?     @db.Timestamp(0)
+  revoked_at         DateTime?     @db.Timestamp(0)
+  created_by         BigInt?       @db.UnsignedBigInt
+  created_at         DateTime?     @db.Timestamp(0)
+  updated_at         DateTime?     @db.Timestamp(0)
+  api_audit_logs     ApiAuditLog[]
+  clients            Client        @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "api_keys_client_id_foreign")
+  users              User?         @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "api_keys_created_by_foreign")
+
+  @@index([client_id], map: "api_keys_client_id_foreign")
+  @@index([created_by], map: "api_keys_created_by_foreign")
+  @@map("api_keys")
+}
+
+model Appointment {
+  id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id        BigInt    @db.UnsignedBigInt
+  contact_id       BigInt?   @db.UnsignedBigInt
+  agent_id         BigInt?   @db.UnsignedBigInt
+  title            String    @db.VarChar(255)
+  contact_name     String?   @db.VarChar(255)
+  contact_phone    String?   @db.VarChar(255)
+  contact_email    String?   @db.VarChar(255)
+  scheduled_at     DateTime  @db.Timestamp(0)
+  duration_minutes Int       @default(30) @db.UnsignedSmallInt
+  status           String    @default("scheduled") @db.VarChar(255)
+  source           String    @default("manual") @db.VarChar(255)
+  notes            String?   @db.Text
+  created_at       DateTime? @db.Timestamp(0)
+  updated_at       DateTime? @db.Timestamp(0)
+  agents           Agent?    @relation(fields: [agent_id], references: [id], onUpdate: NoAction, map: "appointments_agent_id_foreign")
+  clients          Client    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "appointments_client_id_foreign")
+  contacts         Contact?  @relation(fields: [contact_id], references: [id], onUpdate: NoAction, map: "appointments_contact_id_foreign")
+
+  @@index([agent_id], map: "appointments_agent_id_foreign")
+  @@index([client_id, status], map: "appointments_client_id_status_index")
+  @@index([contact_id], map: "appointments_contact_id_foreign")
+  @@map("appointments")
+}
+
+model AuditLog {
+  id             BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  actor_admin_id BigInt?    @db.UnsignedBigInt
+  user_id        BigInt?    @db.UnsignedBigInt
+  client_id      BigInt?    @db.UnsignedBigInt
+  action         String     @db.VarChar(64)
+  auditable_type String?    @db.VarChar(128)
+  auditable_id   BigInt?    @db.UnsignedBigInt
+  old_values     Json?
+  new_values     Json?
+  meta           Json?
+  ip             String?    @db.VarChar(45)
+  user_agent     String?    @db.Text
+  url            String?    @db.VarChar(512)
+  created_at     DateTime?  @db.Timestamp(0)
+  updated_at     DateTime?  @db.Timestamp(0)
+  admin_users    AdminUser? @relation(fields: [actor_admin_id], references: [id], onUpdate: NoAction, map: "audit_logs_actor_admin_id_foreign")
+  clients        Client?    @relation(fields: [client_id], references: [id], onUpdate: NoAction, map: "audit_logs_client_id_foreign")
+  users          User?      @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "audit_logs_user_id_foreign")
+
+  @@index([actor_admin_id], map: "audit_logs_actor_admin_id_foreign")
+  @@index([auditable_type, auditable_id], map: "audit_logs_auditable_type_auditable_id_index")
+  @@index([client_id, created_at], map: "audit_logs_client_created_idx")
+  @@index([user_id, created_at], map: "audit_logs_user_id_created_at_index")
+  @@map("audit_logs")
+}
+
+model Cache {
+  key        String @id @db.VarChar(255)
+  value      String @db.MediumText
+  expiration Int
+
+  @@map("cache")
+}
+
+model CacheLock {
+  key        String @id @db.VarChar(255)
+  owner      String @db.VarChar(255)
+  expiration Int
+
+  @@map("cache_locks")
+}
+
+model CallQueueJob {
+  id              BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id       BigInt       @db.UnsignedBigInt
+  campaign_id     BigInt       @db.UnsignedBigInt
+  contact_id      BigInt       @db.UnsignedBigInt
+  agent_id        BigInt?      @db.UnsignedBigInt
+  phone_number_id BigInt?      @db.UnsignedBigInt
+  status          String       @default("pending") @db.VarChar(32)
+  scheduled_for   DateTime?    @db.Timestamp(0)
+  attempts        Int          @default(0) @db.UnsignedTinyInt
+  max_retries     Int          @default(3) @db.UnsignedTinyInt
+  last_error      String?      @db.Text
+  locked_at       DateTime?    @db.Timestamp(0)
+  priority        Int          @default(0)
+  created_at      DateTime?    @db.Timestamp(0)
+  updated_at      DateTime?    @db.Timestamp(0)
+  agents          Agent?       @relation(fields: [agent_id], references: [id], onUpdate: NoAction, map: "call_queue_jobs_agent_id_foreign")
+  campaigns       Campaign     @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "call_queue_jobs_campaign_id_foreign")
+  clients         Client       @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "call_queue_jobs_client_id_foreign")
+  contacts        Contact      @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "call_queue_jobs_contact_id_foreign")
+  phone_numbers   PhoneNumber? @relation(fields: [phone_number_id], references: [id], onUpdate: NoAction, map: "call_queue_jobs_phone_number_id_foreign")
+
+  @@index([agent_id], map: "call_queue_jobs_agent_id_foreign")
+  @@index([campaign_id], map: "call_queue_jobs_campaign_id_foreign")
+  @@index([client_id], map: "call_queue_jobs_client_id_foreign")
+  @@index([contact_id], map: "call_queue_jobs_contact_id_foreign")
+  @@index([phone_number_id], map: "call_queue_jobs_phone_number_id_foreign")
+  @@index([status, scheduled_for], map: "call_queue_jobs_status_scheduled_for_index")
+  @@index([status, scheduled_for], map: "cqj_status_scheduled_idx")
+  @@map("call_queue_jobs")
+}
+
+model Call {
+  id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id        BigInt            @db.UnsignedBigInt
+  campaign_id      BigInt?           @db.UnsignedBigInt
+  agent_id         BigInt?           @db.UnsignedBigInt
+  contact_id       BigInt?           @db.UnsignedBigInt
+  phone_number_id  BigInt?           @db.UnsignedBigInt
+  twilio_call_sid  String?           @db.VarChar(255)
+  direction        String            @default("outbound") @db.VarChar(16)
+  engine           String?           @db.VarChar(40)
+  status           String            @default("queued") @db.VarChar(32)
+  started_at       DateTime?         @db.Timestamp(0)
+  ended_at         DateTime?         @db.Timestamp(0)
+  duration_seconds Int               @default(0) @db.UnsignedInt
+  recording_url    String?           @db.VarChar(255)
+  recording_sid    String?           @db.VarChar(255)
+  transcript       String?           @db.LongText
+  summary          String?           @db.Text
+  sentiment        String?           @db.VarChar(16)
+  qualification    String?           @db.VarChar(16)
+  outcome          String?           @db.VarChar(255)
+  voice_cost_cents Int               @default(0) @db.UnsignedInt
+  llm_cost_cents   Int               @default(0) @db.UnsignedInt
+  credits_charged  Int               @default(0) @db.UnsignedInt
+  retry_of         BigInt?           @db.UnsignedBigInt
+  meta             Json?
+  created_at       DateTime?         @db.Timestamp(0)
+  updated_at       DateTime?         @db.Timestamp(0)
+  agents           Agent?            @relation(fields: [agent_id], references: [id], onUpdate: NoAction, map: "calls_agent_id_foreign")
+  campaigns        Campaign?         @relation(fields: [campaign_id], references: [id], onUpdate: NoAction, map: "calls_campaign_id_foreign")
+  clients          Client            @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "calls_client_id_foreign")
+  contacts         Contact?          @relation(fields: [contact_id], references: [id], onUpdate: NoAction, map: "calls_contact_id_foreign")
+  phone_numbers    PhoneNumber?      @relation(fields: [phone_number_id], references: [id], onUpdate: NoAction, map: "calls_phone_number_id_foreign")
+  calls            Call?             @relation("callsTocalls", fields: [retry_of], references: [id], onUpdate: NoAction, map: "calls_retry_of_foreign")
+  other_calls      Call[]            @relation("callsTocalls")
+  campaign_contact CampaignContact[]
+  messages         Message[]
+
+  @@index([agent_id], map: "calls_agent_id_foreign")
+  @@index([campaign_id], map: "calls_campaign_id_foreign")
+  @@index([client_id, created_at], map: "calls_client_id_created_at_index")
+  @@index([client_id, qualification], map: "calls_client_qual_idx")
+  @@index([client_id, status], map: "calls_client_status_idx")
+  @@index([contact_id], map: "calls_contact_id_foreign")
+  @@index([phone_number_id], map: "calls_phone_number_id_foreign")
+  @@index([retry_of], map: "calls_retry_of_foreign")
+  @@index([twilio_call_sid], map: "calls_twilio_call_sid_index")
+  @@map("calls")
+}
+
+model CampaignContact {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  campaign_id  BigInt    @db.UnsignedBigInt
+  contact_id   BigInt    @db.UnsignedBigInt
+  call_status  String    @default("pending") @db.VarChar(32)
+  last_call_id BigInt?   @db.UnsignedBigInt
+  attempts     Int       @default(0) @db.UnsignedTinyInt
+  created_at   DateTime? @db.Timestamp(0)
+  updated_at   DateTime? @db.Timestamp(0)
+  campaigns    Campaign  @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "campaign_contact_campaign_id_foreign")
+  contacts     Contact   @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "campaign_contact_contact_id_foreign")
+  calls        Call?     @relation(fields: [last_call_id], references: [id], onUpdate: NoAction, map: "campaign_contact_last_call_id_foreign")
+
+  @@unique([campaign_id, contact_id], map: "campaign_contact_campaign_id_contact_id_unique")
+  @@index([contact_id], map: "campaign_contact_contact_id_foreign")
+  @@index([last_call_id], map: "campaign_contact_last_call_id_foreign")
+  @@map("campaign_contact")
+}
+
+model Campaign {
+  id                  BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id           BigInt            @db.UnsignedBigInt
+  user_id             BigInt?           @db.UnsignedBigInt
+  name                String            @db.VarChar(255)
+  type                String            @default("lead_qualification") @db.VarChar(32)
+  goal                String?           @db.Text
+  agent_id            BigInt?           @db.UnsignedBigInt
+  phone_number_id     BigInt?           @db.UnsignedBigInt
+  status              String            @default("draft") @db.VarChar(32)
+  schedule_start      DateTime?         @db.Timestamp(0)
+  schedule_end        DateTime?         @db.Timestamp(0)
+  daily_call_cap      Int?              @db.UnsignedInt
+  max_retries         Int               @default(3) @db.UnsignedTinyInt
+  retry_delay_minutes Int               @default(60) @db.UnsignedInt
+  timezone            String?           @db.VarChar(64)
+  stats               Json?
+  created_at          DateTime?         @db.Timestamp(0)
+  updated_at          DateTime?         @db.Timestamp(0)
+  deleted_at          DateTime?         @db.Timestamp(0)
+  call_queue_jobs     CallQueueJob[]
+  calls               Call[]
+  campaign_contact    CampaignContact[]
+  agents              Agent?            @relation(fields: [agent_id], references: [id], onUpdate: NoAction, map: "campaigns_agent_id_foreign")
+  clients             Client            @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "campaigns_client_id_foreign")
+  phone_numbers       PhoneNumber?      @relation(fields: [phone_number_id], references: [id], onUpdate: NoAction, map: "campaigns_phone_number_id_foreign")
+  users               User?             @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "campaigns_user_id_foreign")
+  webhooks            Webhook[]
+
+  @@index([agent_id], map: "campaigns_agent_id_foreign")
+  @@index([client_id, status], map: "campaigns_client_status_idx")
+  @@index([phone_number_id], map: "campaigns_phone_number_id_foreign")
+  @@index([user_id], map: "campaigns_user_id_foreign")
+  @@map("campaigns")
+}
+
+model ClientPermission {
+  id                     BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  key                    String                 @unique(map: "client_permissions_key_unique") @db.VarChar(255)
+  name                   String                 @db.VarChar(255)
+  module                 String                 @db.VarChar(64)
+  action                 String                 @db.VarChar(16)
+  created_at             DateTime?              @db.Timestamp(0)
+  updated_at             DateTime?              @db.Timestamp(0)
+  client_role_permission ClientRolePermission[]
+
+  @@map("client_permissions")
+}
+
+model ClientRolePermission {
+  id                   BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  client_role_id       BigInt           @db.UnsignedBigInt
+  client_permission_id BigInt           @db.UnsignedBigInt
+  client_permissions   ClientPermission @relation(fields: [client_permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_role_permission_client_permission_id_foreign")
+  client_roles         ClientRole       @relation(fields: [client_role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_role_permission_client_role_id_foreign")
+
+  @@unique([client_role_id, client_permission_id], map: "crp_unique")
+  @@index([client_permission_id], map: "client_role_permission_client_permission_id_foreign")
+  @@map("client_role_permission")
+}
+
+model ClientRole {
+  id                     BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id              BigInt                 @db.UnsignedBigInt
+  key                    String                 @db.VarChar(64)
+  name                   String                 @db.VarChar(255)
+  is_system              Boolean                @default(false)
+  created_at             DateTime?              @db.Timestamp(0)
+  updated_at             DateTime?              @db.Timestamp(0)
+  client_role_permission ClientRolePermission[]
+  clients                Client                 @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_roles_client_id_foreign")
+  client_user_role       ClientUserRole[]
+
+  @@unique([client_id, key], map: "client_roles_client_id_key_unique")
+  @@map("client_roles")
+}
+
+model ClientSubscription {
+  id                   BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id            BigInt     @db.UnsignedBigInt
+  plan_id              BigInt     @db.UnsignedBigInt
+  billing_cycle        String     @db.VarChar(16)
+  starts_at            DateTime?  @db.Timestamp(0)
+  ends_at              DateTime?  @db.Timestamp(0)
+  status               String     @default("active") @db.VarChar(32)
+  assigned_by_admin_id BigInt?    @db.UnsignedBigInt
+  created_at           DateTime?  @db.Timestamp(0)
+  updated_at           DateTime?  @db.Timestamp(0)
+  admin_users          AdminUser? @relation(fields: [assigned_by_admin_id], references: [id], onUpdate: NoAction, map: "client_subscriptions_assigned_by_admin_id_foreign")
+  clients              Client     @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_subscriptions_client_id_foreign")
+  plans                Plan       @relation(fields: [plan_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_subscriptions_plan_id_foreign")
+
+  @@index([assigned_by_admin_id], map: "client_subscriptions_assigned_by_admin_id_foreign")
+  @@index([client_id, status], map: "client_subscriptions_client_id_status_index")
+  @@index([plan_id], map: "client_subscriptions_plan_id_foreign")
+  @@map("client_subscriptions")
+}
+
+model ClientUserRole {
+  id             BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id        BigInt     @db.UnsignedBigInt
+  client_role_id BigInt     @db.UnsignedBigInt
+  client_roles   ClientRole @relation(fields: [client_role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_user_role_client_role_id_foreign")
+  users          User       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "client_user_role_user_id_foreign")
+
+  @@unique([user_id, client_role_id], map: "client_user_role_user_id_client_role_id_unique")
+  @@index([client_role_id], map: "client_user_role_client_role_id_foreign")
+  @@map("client_user_role")
+}
+
+model Client {
+  id                          BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  name                        String                    @db.VarChar(255)
+  email                       String?                   @db.VarChar(255)
+  phone                       String?                   @db.VarChar(64)
+  address                     String?                   @db.Text
+  status                      String                    @default("active") @db.VarChar(32)
+  kyc_status                  String                    @default("unverified") @db.VarChar(16)
+  base_currency               String                    @default("USD") @db.VarChar(10)
+  currency_symbol             String                    @default("$") @db.VarChar(16)
+  currency_position           String                    @default("before") @db.VarChar(32)
+  created_at                  DateTime?                 @db.Timestamp(0)
+  updated_at                  DateTime?                 @db.Timestamp(0)
+  agents                      Agent[]
+  api_audit_logs              ApiAuditLog[]
+  api_keys                    ApiKey[]
+  appointments                Appointment[]
+  audit_logs                  AuditLog[]
+  call_queue_jobs             CallQueueJob[]
+  calls                       Call[]
+  campaigns                   Campaign[]
+  client_roles                ClientRole[]
+  client_subscriptions        ClientSubscription[]
+  contact_lists               ContactList[]
+  contacts                    Contact[]
+  conversations               Conversation[]
+  credit_ledger               CreditLedger[]
+  credit_purchases            CreditPurchase[]
+  customer_support_tickets    CustomerSupportTicket[]
+  flow_executions             FlowExecution[]
+  flows                       Flow[]
+  form_submissions            FormSubmission[]
+  forms                       Form[]
+  google_sheet_connections    GoogleSheetConnection?
+  inbound_routes              InboundRoute[]
+  knowledge_base_items        KnowledgeBaseItem[]
+  kyc_documents               KycDocument[]
+  marketing_gift_cards        MarketingGiftCard[]
+  marketing_referral_settings MarketingReferralSetting?
+  marketing_referrals         MarketingReferral[]
+  marketing_vouchers          MarketingVoucher[]
+  message_templates           MessageTemplate[]
+  messages                    Message[]
+  notifications               Notification[]
+  phone_numbers               PhoneNumber[]
+  prompt_templates            PromptTemplate[]
+  sip_trunks                  SipTrunk[]
+  users                       User[]
+  webhooks                    Webhook[]
+  website_widgets             WebsiteWidget?
+  whatsapp_accounts           WhatsAppAccount[]
+  whatsapp_templates          WhatsAppTemplate[]
+
+  @@index([email], map: "clients_email_index")
+  @@map("clients")
+}
+
+model ContactListContact {
+  id              BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  contact_list_id BigInt      @db.UnsignedBigInt
+  contact_id      BigInt      @db.UnsignedBigInt
+  created_at      DateTime?   @db.Timestamp(0)
+  updated_at      DateTime?   @db.Timestamp(0)
+  contacts        Contact     @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contact_list_contact_contact_id_foreign")
+  contact_lists   ContactList @relation(fields: [contact_list_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contact_list_contact_contact_list_id_foreign")
+
+  @@unique([contact_list_id, contact_id], map: "contact_list_contact_contact_list_id_contact_id_unique")
+  @@index([contact_id], map: "contact_list_contact_contact_id_foreign")
+  @@map("contact_list_contact")
+}
+
+model ContactList {
+  id                   BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id            BigInt               @db.UnsignedBigInt
+  name                 String               @db.VarChar(255)
+  count                Int                  @default(0) @db.UnsignedInt
+  created_at           DateTime?            @db.Timestamp(0)
+  updated_at           DateTime?            @db.Timestamp(0)
+  contact_list_contact ContactListContact[]
+  clients              Client               @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contact_lists_client_id_foreign")
+
+  @@index([client_id], map: "contact_lists_client_id_foreign")
+  @@map("contact_lists")
+}
+
+model Contact {
+  id                   BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id            BigInt               @db.UnsignedBigInt
+  name                 String?              @db.VarChar(255)
+  phone                String               @db.VarChar(32)
+  email                String?              @db.VarChar(255)
+  company              String?              @db.VarChar(255)
+  tags                 Json?
+  custom_fields        Json?
+  source               String               @default("manual") @db.VarChar(32)
+  pipeline_stage       String?              @default("new") @db.VarChar(255)
+  created_at           DateTime?            @db.Timestamp(0)
+  updated_at           DateTime?            @db.Timestamp(0)
+  appointments         Appointment[]
+  call_queue_jobs      CallQueueJob[]
+  calls                Call[]
+  campaign_contact     CampaignContact[]
+  contact_list_contact ContactListContact[]
+  clients              Client               @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "contacts_client_id_foreign")
+  conversations        Conversation[]
+  form_submissions     FormSubmission[]
+  messages             Message[]
+
+  @@unique([client_id, phone], map: "contacts_client_id_phone_unique")
+  @@index([client_id, pipeline_stage], map: "contacts_client_id_pipeline_stage_index")
+  @@map("contacts")
+}
+
+model Conversation {
+  id                  BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id           BigInt           @db.UnsignedBigInt
+  contact_id          BigInt?          @db.UnsignedBigInt
+  whatsapp_account_id BigInt?          @db.UnsignedBigInt
+  channel             String           @default("whatsapp") @db.VarChar(16)
+  wa_phone            String           @db.VarChar(32)
+  name                String?          @db.VarChar(255)
+  last_message_at     DateTime?        @db.Timestamp(0)
+  window_expires_at   DateTime?        @db.Timestamp(0)
+  unread_count        Int              @default(0) @db.UnsignedInt
+  status              String           @default("open") @db.VarChar(16)
+  created_at          DateTime?        @db.Timestamp(0)
+  updated_at          DateTime?        @db.Timestamp(0)
+  clients             Client           @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "conversations_client_id_foreign")
+  contacts            Contact?         @relation(fields: [contact_id], references: [id], onUpdate: NoAction, map: "conversations_contact_id_foreign")
+  whatsapp_accounts   WhatsAppAccount? @relation(fields: [whatsapp_account_id], references: [id], onUpdate: NoAction, map: "conversations_whatsapp_account_id_foreign")
+  messages            Message[]
+
+  @@unique([client_id, channel, wa_phone], map: "conversations_client_id_channel_wa_phone_unique")
+  @@index([contact_id], map: "conversations_contact_id_foreign")
+  @@index([whatsapp_account_id], map: "conversations_whatsapp_account_id_foreign")
+  @@map("conversations")
+}
+
+model CreditLedger {
+  id                  BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id           BigInt     @db.UnsignedBigInt
+  delta               Int
+  balance_after       Int
+  reason              String     @db.VarChar(32)
+  reference_type      String?    @db.VarChar(255)
+  reference_id        BigInt?    @db.UnsignedBigInt
+  note                String?    @db.VarChar(255)
+  created_by_admin_id BigInt?    @db.UnsignedBigInt
+  created_at          DateTime?  @db.Timestamp(0)
+  updated_at          DateTime?  @db.Timestamp(0)
+  clients             Client     @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "credit_ledger_client_id_foreign")
+  admin_users         AdminUser? @relation(fields: [created_by_admin_id], references: [id], onUpdate: NoAction, map: "credit_ledger_created_by_admin_id_foreign")
+
+  @@index([client_id, id], map: "credit_ledger_client_id_id_index")
+  @@index([created_by_admin_id], map: "credit_ledger_created_by_admin_id_foreign")
+  @@map("credit_ledger")
+}
+
+model CreditPackage {
+  id               BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  name             String           @db.VarChar(255)
+  credits          Int              @db.UnsignedInt
+  price_cents      BigInt           @db.UnsignedBigInt
+  currency_code    String           @default("USD") @db.VarChar(10)
+  is_popular       Boolean          @default(false)
+  is_active        Boolean          @default(true)
+  sort_order       Int              @default(0) @db.UnsignedInt
+  created_at       DateTime?        @db.Timestamp(0)
+  updated_at       DateTime?        @db.Timestamp(0)
+  credit_purchases CreditPurchase[]
+
+  @@map("credit_packages")
+}
+
+model CreditPurchase {
+  id                BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id         BigInt         @db.UnsignedBigInt
+  credit_package_id BigInt?        @db.UnsignedBigInt
+  credits           Int            @db.UnsignedInt
+  amount_cents      BigInt         @db.UnsignedBigInt
+  currency_code     String         @default("USD") @db.VarChar(10)
+  gateway           String?        @db.VarChar(32)
+  gateway_reference String?        @db.VarChar(255)
+  status            String         @default("pending") @db.VarChar(32)
+  created_at        DateTime?      @db.Timestamp(0)
+  updated_at        DateTime?      @db.Timestamp(0)
+  clients           Client         @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "credit_purchases_client_id_foreign")
+  credit_packages   CreditPackage? @relation(fields: [credit_package_id], references: [id], onUpdate: NoAction, map: "credit_purchases_credit_package_id_foreign")
+
+  @@index([client_id], map: "credit_purchases_client_id_foreign")
+  @@index([credit_package_id], map: "credit_purchases_credit_package_id_foreign")
+  @@map("credit_purchases")
+}
+
+model Currency {
+  code          String    @id @db.VarChar(10)
+  symbol        String    @db.VarChar(10)
+  decimals      Int       @default(2) @db.UnsignedTinyInt
+  exchange_rate Decimal   @default(1.00000000) @db.Decimal(18, 8)
+  is_default    Boolean   @default(false)
+  enabled       Boolean   @default(true)
+  created_at    DateTime? @db.Timestamp(0)
+  updated_at    DateTime? @db.Timestamp(0)
+
+  @@map("currencies")
+}
+
+model CustomerSupportTicketMessage {
+  id                       BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  ticket_id                BigInt                @db.UnsignedBigInt
+  sender_type              String                @db.VarChar(32)
+  sender_name              String?
+  message                  String                @db.Text
+  is_internal              Boolean               @default(false)
+  created_at               DateTime?             @db.Timestamp(0)
+  updated_at               DateTime?             @db.Timestamp(0)
+  customer_support_tickets CustomerSupportTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_support_ticket_messages_ticket_id_foreign")
+
+  @@index([ticket_id, created_at], map: "customer_support_ticket_messages_ticket_id_created_at_index")
+  @@map("customer_support_ticket_messages")
+}
+
+model CustomerSupportTicket {
+  id                               BigInt                         @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id                        BigInt                         @db.UnsignedBigInt
+  requester_name                   String?                        @db.VarChar(255)
+  requester_email                  String?                        @db.VarChar(255)
+  title                            String                         @db.VarChar(255)
+  description                      String                         @db.Text
+  status                           String                         @default("open") @db.VarChar(32)
+  priority                         String                         @default("medium") @db.VarChar(32)
+  created_at                       DateTime?                      @db.Timestamp(0)
+  updated_at                       DateTime?                      @db.Timestamp(0)
+  customer_support_ticket_messages CustomerSupportTicketMessage[]
+  clients                          Client                         @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "customer_support_tickets_client_id_foreign")
+
+  @@index([client_id, status], map: "customer_support_tickets_client_id_status_index")
+  @@map("customer_support_tickets")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Domain {
+  id                 BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  website_id         BigInt    @db.UnsignedBigInt
+  domain             String    @unique(map: "domains_domain_unique") @db.VarChar(253)
+  status             String    @default("pending") @db.VarChar(32)
+  verification_token String?   @db.VarChar(64)
+  ssl_status         String?   @db.VarChar(32)
+  verified_at        DateTime? @db.Timestamp(0)
+  created_at         DateTime? @db.Timestamp(0)
+  updated_at         DateTime? @db.Timestamp(0)
+  websites           Website   @relation(fields: [website_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "domains_website_id_foreign")
+
+  @@index([website_id], map: "domains_website_id_foreign")
+  @@map("domains")
+}
+
+model ElevenLabsKey {
+  id                   BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  label                String    @db.VarChar(255)
+  api_key              String    @db.Text
+  max_concurrency      Int       @default(30) @db.UnsignedInt
+  current_load         Int       @default(0) @db.UnsignedInt
+  status               String    @default("active") @db.VarChar(32)
+  last_health_check_at DateTime? @db.Timestamp(0)
+  agents_count         Int       @default(0) @db.UnsignedInt
+  meta                 Json?
+  created_at           DateTime? @db.Timestamp(0)
+  updated_at           DateTime? @db.Timestamp(0)
+  voices               Voice[]
+
+  @@map("elevenlabs_keys")
+}
+
+model FailedJob {
+  id         BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  uuid       String   @unique(map: "failed_jobs_uuid_unique") @db.VarChar(255)
+  connection String   @db.Text
+  queue      String   @db.Text
+  payload    String   @db.LongText
+  exception  String   @db.LongText
+  failed_at  DateTime @default(now()) @db.Timestamp(0)
+
+  @@map("failed_jobs")
+}
+
+model FlowExecutionStep {
+  id                BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  flow_execution_id BigInt        @db.UnsignedBigInt
+  node_id           String        @db.VarChar(255)
+  label             String        @db.VarChar(255)
+  type              String        @default("action") @db.VarChar(255)
+  status            String        @default("pending") @db.VarChar(255)
+  output            Json?
+  started_at        DateTime?     @db.Timestamp(0)
+  finished_at       DateTime?     @db.Timestamp(0)
+  created_at        DateTime?     @db.Timestamp(0)
+  updated_at        DateTime?     @db.Timestamp(0)
+  flow_executions   FlowExecution @relation(fields: [flow_execution_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "flow_execution_steps_flow_execution_id_foreign")
+
+  @@index([flow_execution_id], map: "flow_execution_steps_flow_execution_id_index")
+  @@map("flow_execution_steps")
+}
+
+model FlowExecution {
+  id                   BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id            BigInt              @db.UnsignedBigInt
+  flow_id              BigInt              @db.UnsignedBigInt
+  status               String              @default("running") @db.VarChar(255)
+  trigger_source       String              @default("manual") @db.VarChar(255)
+  context              Json?
+  error                String?             @db.Text
+  started_at           DateTime?           @db.Timestamp(0)
+  finished_at          DateTime?           @db.Timestamp(0)
+  duration_ms          Int?                @db.UnsignedInt
+  created_at           DateTime?           @db.Timestamp(0)
+  updated_at           DateTime?           @db.Timestamp(0)
+  flow_execution_steps FlowExecutionStep[]
+  clients              Client              @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "flow_executions_client_id_foreign")
+  flows                Flow                @relation(fields: [flow_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "flow_executions_flow_id_foreign")
+
+  @@index([client_id, status], map: "flow_executions_client_id_status_index")
+  @@index([flow_id, status], map: "flow_executions_flow_id_status_index")
+  @@map("flow_executions")
+}
+
+model Flow {
+  id              BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id       BigInt          @db.UnsignedBigInt
+  user_id         BigInt?         @db.UnsignedBigInt
+  name            String          @db.VarChar(255)
+  description     String?         @db.VarChar(255)
+  status          String          @default("draft") @db.VarChar(255)
+  trigger_type    String?         @db.VarChar(255)
+  definition      Json?
+  template_key    String?         @db.VarChar(255)
+  last_run_at     DateTime?       @db.Timestamp(0)
+  created_at      DateTime?       @db.Timestamp(0)
+  updated_at      DateTime?       @db.Timestamp(0)
+  deleted_at      DateTime?       @db.Timestamp(0)
+  flow_executions FlowExecution[]
+  clients         Client          @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "flows_client_id_foreign")
+  users           User?           @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "flows_user_id_foreign")
+
+  @@index([client_id, status], map: "flows_client_id_status_index")
+  @@index([user_id], map: "flows_user_id_foreign")
+  @@map("flows")
+}
+
+model FormSubmission {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id  BigInt    @db.UnsignedBigInt
+  form_id    BigInt    @db.UnsignedBigInt
+  data       Json?
+  contact_id BigInt?   @db.UnsignedBigInt
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+  clients    Client    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "form_submissions_client_id_foreign")
+  contacts   Contact?  @relation(fields: [contact_id], references: [id], onUpdate: NoAction, map: "form_submissions_contact_id_foreign")
+  forms      Form      @relation(fields: [form_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "form_submissions_form_id_foreign")
+
+  @@index([client_id, form_id], map: "form_submissions_client_id_form_id_index")
+  @@index([contact_id], map: "form_submissions_contact_id_foreign")
+  @@index([form_id], map: "form_submissions_form_id_foreign")
+  @@map("form_submissions")
+}
+
+model Form {
+  id               BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id        BigInt           @db.UnsignedBigInt
+  user_id          BigInt?          @db.UnsignedBigInt
+  name             String           @db.VarChar(255)
+  description      String?          @db.VarChar(255)
+  fields           Json?
+  status           String           @default("active") @db.VarChar(32)
+  public_token     String           @unique(map: "forms_public_token_unique") @db.VarChar(255)
+  created_at       DateTime?        @db.Timestamp(0)
+  updated_at       DateTime?        @db.Timestamp(0)
+  deleted_at       DateTime?        @db.Timestamp(0)
+  form_submissions FormSubmission[]
+  clients          Client           @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "forms_client_id_foreign")
+  users            User?            @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "forms_user_id_foreign")
+
+  @@index([client_id, status], map: "forms_client_id_status_index")
+  @@index([user_id], map: "forms_user_id_foreign")
+  @@map("forms")
+}
+
+model GeneralSetting {
+  id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  system_title     String?
+  company_name     String?
+  tagline          String?   @db.Text
+  email            String?
+  timezone         String    @default("UTC") @db.VarChar(128)
+  default_locale   String?   @db.VarChar(32)
+  country          String?   @db.VarChar(2)
+  default_currency String?   @db.VarChar(8)
+  primary_color    String?   @db.VarChar(32)
+  favicon_path     String?   @db.VarChar(255)
+  site_logo_path   String?   @db.VarChar(255)
+  created_at       DateTime? @db.Timestamp(0)
+  updated_at       DateTime? @db.Timestamp(0)
+
+  @@map("general_settings")
+}
+
+model GoogleSheetConnection {
+  id                BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id         BigInt    @unique(map: "google_sheet_connections_client_id_unique") @db.UnsignedBigInt
+  connected         Boolean   @default(false)
+  account_email     String?   @db.VarChar(255)
+  spreadsheet_id    String?   @db.VarChar(255)
+  spreadsheet_url   String?   @db.VarChar(255)
+  sync_forms        Boolean   @default(false)
+  sync_appointments Boolean   @default(false)
+  rows_synced       Int       @default(0) @db.UnsignedInt
+  last_synced_at    DateTime? @db.Timestamp(0)
+  created_at        DateTime? @db.Timestamp(0)
+  updated_at        DateTime? @db.Timestamp(0)
+  clients           Client    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "google_sheet_connections_client_id_foreign")
+
+  @@map("google_sheet_connections")
+}
+
+model InboundRoute {
+  id              BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id       BigInt       @db.UnsignedBigInt
+  phone_number_id BigInt?      @db.UnsignedBigInt
+  agent_id        BigInt?      @db.UnsignedBigInt
+  name            String       @db.VarChar(255)
+  action          String       @default("connect_agent") @db.VarChar(255)
+  forward_to      String?      @db.VarChar(255)
+  priority        Int          @default(0) @db.UnsignedInt
+  enabled         Boolean      @default(true)
+  created_at      DateTime?    @db.Timestamp(0)
+  updated_at      DateTime?    @db.Timestamp(0)
+  agents          Agent?       @relation(fields: [agent_id], references: [id], onUpdate: NoAction, map: "inbound_routes_agent_id_foreign")
+  clients         Client       @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "inbound_routes_client_id_foreign")
+  phone_numbers   PhoneNumber? @relation(fields: [phone_number_id], references: [id], onUpdate: NoAction, map: "inbound_routes_phone_number_id_foreign")
+
+  @@index([agent_id], map: "inbound_routes_agent_id_foreign")
+  @@index([client_id, enabled], map: "inbound_routes_client_id_enabled_index")
+  @@index([phone_number_id], map: "inbound_routes_phone_number_id_foreign")
+  @@map("inbound_routes")
+}
+
+model IntegrationSetting {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  key        String    @unique(map: "integration_settings_key_unique") @db.VarChar(255)
+  enabled    Boolean   @default(true)
+  config     String?   @db.Text
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+
+  @@map("integration_settings")
+}
+
+model JobBatch {
+  id             String  @id @db.VarChar(255)
+  name           String  @db.VarChar(255)
+  total_jobs     Int
+  pending_jobs   Int
+  failed_jobs    Int
+  failed_job_ids String  @db.LongText
+  options        String? @db.MediumText
+  cancelled_at   Int?
+  created_at     Int
+  finished_at    Int?
+
+  @@map("job_batches")
+}
+
+model Job {
+  id           BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  queue        String @db.VarChar(255)
+  payload      String @db.LongText
+  attempts     Int    @db.UnsignedTinyInt
+  reserved_at  Int?   @db.UnsignedInt
+  available_at Int    @db.UnsignedInt
+  created_at   Int    @db.UnsignedInt
+
+  @@index([queue], map: "jobs_queue_index")
+  @@map("jobs")
+}
+
+model KnowledgeBaseItem {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id       BigInt    @db.UnsignedBigInt
+  agent_id        BigInt?   @db.UnsignedBigInt
+  type            String    @default("text") @db.VarChar(16)
+  title           String    @db.VarChar(255)
+  source_url      String?   @db.VarChar(255)
+  file_path       String?   @db.VarChar(255)
+  file_size_bytes BigInt    @default(0) @db.UnsignedBigInt
+  content         String?   @db.LongText
+  tokens          Int?      @db.UnsignedInt
+  status          String    @default("pending") @db.VarChar(32)
+  created_at      DateTime? @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
+  agents          Agent?    @relation(fields: [agent_id], references: [id], onUpdate: NoAction, map: "knowledge_base_items_agent_id_foreign")
+  clients         Client    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "knowledge_base_items_client_id_foreign")
+
+  @@index([agent_id], map: "knowledge_base_items_agent_id_foreign")
+  @@index([client_id], map: "knowledge_base_items_client_id_foreign")
+  @@map("knowledge_base_items")
+}
+
+model KycDocument {
+  id                   BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id            BigInt     @db.UnsignedBigInt
+  type                 String     @db.VarChar(48)
+  file_path            String     @db.VarChar(255)
+  original_name        String?    @db.VarChar(255)
+  status               String     @default("pending") @db.VarChar(16)
+  note                 String?    @db.VarChar(255)
+  reviewed_by_admin_id BigInt?    @db.UnsignedBigInt
+  created_at           DateTime?  @db.Timestamp(0)
+  updated_at           DateTime?  @db.Timestamp(0)
+  clients              Client     @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "kyc_documents_client_id_foreign")
+  admin_users          AdminUser? @relation(fields: [reviewed_by_admin_id], references: [id], onUpdate: NoAction, map: "kyc_documents_reviewed_by_admin_id_foreign")
+
+  @@unique([client_id, type], map: "kyc_documents_client_id_type_unique")
+  @@index([reviewed_by_admin_id], map: "kyc_documents_reviewed_by_admin_id_foreign")
+  @@map("kyc_documents")
+}
+
+model Locale {
+  code        String    @id @db.VarChar(10)
+  name        String    @db.VarChar(255)
+  native_name String?   @db.VarChar(255)
+  flag        String?   @db.VarChar(20)
+  enabled     Boolean   @default(true)
+  is_default  Boolean   @default(false)
+  is_rtl      Boolean   @default(false)
+  sort_order  Int       @default(0) @db.UnsignedSmallInt
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+
+  @@map("locales")
+}
+
+model MarketingGiftCard {
+  id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id        BigInt    @db.UnsignedBigInt
+  code             String    @db.VarChar(96)
+  initial_amount   Decimal   @db.Decimal(14, 2)
+  balance          Decimal   @db.Decimal(14, 2)
+  recipient_name   String?   @db.VarChar(255)
+  recipient_email  String?   @db.VarChar(255)
+  personal_message String?   @db.Text
+  theme            String    @default("default") @db.VarChar(32)
+  expires_at       DateTime? @db.Timestamp(0)
+  status           String    @default("active") @db.VarChar(16)
+  delivery_status  String    @default("pending") @db.VarChar(16)
+  created_at       DateTime? @db.Timestamp(0)
+  updated_at       DateTime? @db.Timestamp(0)
+  clients          Client    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "marketing_gift_cards_client_id_foreign")
+
+  @@unique([client_id, code], map: "marketing_gift_cards_client_id_code_unique")
+  @@map("marketing_gift_cards")
+}
+
+model MarketingReferralSetting {
+  id                     BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id              BigInt    @unique(map: "marketing_referral_settings_client_id_unique") @db.UnsignedBigInt
+  enabled                Boolean   @default(true)
+  reward_type            String    @default("percentage") @db.VarChar(16)
+  reward_value           Decimal   @default(10.00) @db.Decimal(12, 2)
+  referred_user_discount Decimal   @default(10.00) @db.Decimal(8, 2)
+  min_order_amount       Decimal   @default(0.00) @db.Decimal(14, 2)
+  expiry_days            Int       @default(90) @db.UnsignedInt
+  terms                  String?   @db.Text
+  created_at             DateTime? @db.Timestamp(0)
+  updated_at             DateTime? @db.Timestamp(0)
+  clients                Client    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "marketing_referral_settings_client_id_foreign")
+
+  @@map("marketing_referral_settings")
+}
+
+model MarketingReferral {
+  id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id      BigInt    @db.UnsignedBigInt
+  referral_code  String    @db.VarChar(64)
+  referrer_email String?   @db.VarChar(255)
+  referred_email String?   @db.VarChar(255)
+  status         String    @default("pending") @db.VarChar(32)
+  reward_amount  Decimal   @default(0.00) @db.Decimal(12, 2)
+  converted_at   DateTime? @db.Timestamp(0)
+  created_at     DateTime? @db.Timestamp(0)
+  updated_at     DateTime? @db.Timestamp(0)
+  clients        Client    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "marketing_referrals_client_id_foreign")
+
+  @@index([client_id], map: "marketing_referrals_client_id_foreign")
+  @@index([referral_code], map: "marketing_referrals_referral_code_index")
+  @@index([status], map: "marketing_referrals_status_index")
+  @@map("marketing_referrals")
+}
+
+model MarketingVoucher {
+  id                    BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id             BigInt    @db.UnsignedBigInt
+  code                  String    @db.VarChar(64)
+  status                String    @default("active") @db.VarChar(16)
+  discount_type         String    @db.VarChar(16)
+  discount_value        Decimal   @db.Decimal(12, 4)
+  description           String?   @db.Text
+  min_purchase          Decimal   @default(0.0000) @db.Decimal(14, 4)
+  max_discount_cap      Decimal?  @db.Decimal(14, 4)
+  total_usage_limit     Int?      @db.UnsignedInt
+  per_user_limit        Int       @default(100) @db.UnsignedInt
+  valid_from            DateTime  @db.DateTime(0)
+  valid_until           DateTime  @db.DateTime(0)
+  first_time_only       Boolean   @default(false)
+  stackable             Boolean   @default(false)
+  usage_count           Int       @default(0) @db.UnsignedInt
+  total_discount_amount Decimal   @default(0.0000) @db.Decimal(14, 4)
+  created_at            DateTime? @db.Timestamp(0)
+  updated_at            DateTime? @db.Timestamp(0)
+  clients               Client    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "marketing_vouchers_client_id_foreign")
+
+  @@unique([client_id, code], map: "marketing_vouchers_client_id_code_unique")
+  @@map("marketing_vouchers")
+}
+
+model MessageTemplate {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id   BigInt    @db.UnsignedBigInt
+  channel     String    @default("email") @db.VarChar(16)
+  name        String    @db.VarChar(255)
+  subject     String?   @db.VarChar(255)
+  design_json String?   @db.LongText
+  html        String?   @db.LongText
+  variables   Json?
+  is_active   Boolean   @default(true)
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+  clients     Client    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "message_templates_client_id_foreign")
+
+  @@index([client_id], map: "message_templates_client_id_foreign")
+  @@map("message_templates")
+}
+
+model Message {
+  id                  BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id           BigInt        @db.UnsignedBigInt
+  conversation_id     BigInt?       @db.UnsignedBigInt
+  contact_id          BigInt?       @db.UnsignedBigInt
+  channel             String        @db.VarChar(16)
+  direction           String        @db.VarChar(8)
+  type                String        @default("text") @db.VarChar(16)
+  subject             String?       @db.VarChar(255)
+  body                String?       @db.LongText
+  media_url           String?       @db.VarChar(255)
+  template_id         BigInt?       @db.UnsignedBigInt
+  provider            String?       @db.VarChar(16)
+  provider_message_id String?       @db.VarChar(255)
+  status              String        @default("queued") @db.VarChar(16)
+  error               String?       @db.Text
+  call_id             BigInt?       @db.UnsignedBigInt
+  sent_by             String?       @db.VarChar(255)
+  meta                Json?
+  created_at          DateTime?     @db.Timestamp(0)
+  updated_at          DateTime?     @db.Timestamp(0)
+  calls               Call?         @relation(fields: [call_id], references: [id], onUpdate: NoAction, map: "messages_call_id_foreign")
+  clients             Client        @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "messages_client_id_foreign")
+  contacts            Contact?      @relation(fields: [contact_id], references: [id], onUpdate: NoAction, map: "messages_contact_id_foreign")
+  conversations       Conversation? @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "messages_conversation_id_foreign")
+
+  @@index([call_id], map: "messages_call_id_foreign")
+  @@index([client_id, channel, created_at], map: "messages_client_id_channel_created_at_index")
+  @@index([contact_id], map: "messages_contact_id_foreign")
+  @@index([conversation_id], map: "messages_conversation_id_foreign")
+  @@index([provider_message_id], map: "messages_provider_message_id_index")
+  @@map("messages")
+}
+
+model MessagingSetting {
+  id                      BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  provider_mode           String    @default("disabled") @db.VarChar(16)
+  meta_app_id             String?   @db.VarChar(255)
+  meta_app_secret         String?   @db.Text
+  meta_config_id          String?   @db.VarChar(255)
+  verify_token            String?   @db.VarChar(255)
+  embedded_signup_enabled Boolean   @default(false)
+  coexistence_enabled     Boolean   @default(false)
+  created_at              DateTime? @db.Timestamp(0)
+  updated_at              DateTime? @db.Timestamp(0)
+
+  @@map("messaging_settings")
+}
+
+model Migration {
+  id        Int    @id @default(autoincrement()) @db.UnsignedInt
+  migration String @db.VarChar(255)
+  batch     Int
+
+  @@map("migrations")
+}
+
+model Notification {
+  id                  BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id           BigInt?    @db.UnsignedBigInt
+  title               String     @db.VarChar(255)
+  message             String     @db.Text
+  level               String     @default("info") @db.VarChar(16)
+  created_by_admin_id BigInt?    @db.UnsignedBigInt
+  created_at          DateTime?  @db.Timestamp(0)
+  updated_at          DateTime?  @db.Timestamp(0)
+  clients             Client?    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "notifications_client_id_foreign")
+  admin_users         AdminUser? @relation(fields: [created_by_admin_id], references: [id], onUpdate: NoAction, map: "notifications_created_by_admin_id_foreign")
+
+  @@index([client_id, created_at], map: "notifications_client_id_created_at_index")
+  @@index([created_by_admin_id], map: "notifications_created_by_admin_id_foreign")
+  @@map("notifications")
+}
+
+model PageRevision {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  page_id    BigInt    @db.UnsignedBigInt
+  version    Int       @db.UnsignedInt
+  data_json  Json
+  created_by BigInt?   @db.UnsignedBigInt
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+  users      User?     @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "page_revisions_created_by_foreign")
+  pages      Page      @relation(fields: [page_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "page_revisions_page_id_foreign")
+
+  @@unique([page_id, version], map: "page_revisions_page_id_version_unique")
+  @@index([created_by], map: "page_revisions_created_by_foreign")
+  @@map("page_revisions")
+}
+
+model Page {
+  id             BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  website_id     BigInt         @db.UnsignedBigInt
+  name           String         @db.VarChar(255)
+  slug           String         @db.VarChar(255)
+  seo_meta       Json?
+  data_json      Json?
+  created_at     DateTime?      @db.Timestamp(0)
+  updated_at     DateTime?      @db.Timestamp(0)
+  page_revisions PageRevision[]
+  websites       Website        @relation(fields: [website_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "pages_website_id_foreign")
+
+  @@unique([website_id, slug], map: "pages_website_id_slug_unique")
+  @@map("pages")
+}
+
+model PasswordResetToken {
+  email      String    @id @db.VarChar(255)
+  token      String    @db.VarChar(255)
+  created_at DateTime? @db.Timestamp(0)
+
+  @@map("password_reset_tokens")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model PaymentGatewayConfig {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  gateway     String    @unique(map: "payment_gateway_configs_gateway_unique") @db.VarChar(32)
+  test_mode   Boolean   @default(true)
+  enabled     Boolean   @default(false)
+  credentials String?   @db.Text
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+
+  @@map("payment_gateway_configs")
+}
+
+model PaymentTransaction {
+  id                     BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  subscription_id        BigInt?       @db.UnsignedBigInt
+  user_id                BigInt?       @db.UnsignedBigInt
+  gateway                String        @db.VarChar(32)
+  gateway_transaction_id String?       @db.VarChar(255)
+  amount_cents           BigInt        @default(0) @db.UnsignedBigInt
+  currency_code          String?       @db.VarChar(10)
+  status                 String        @default("pending") @db.VarChar(32)
+  payload                Json?
+  created_at             DateTime?     @db.Timestamp(0)
+  updated_at             DateTime?     @db.Timestamp(0)
+  subscriptions          Subscription? @relation(fields: [subscription_id], references: [id], onUpdate: NoAction, map: "payment_transactions_subscription_id_foreign")
+  users                  User?         @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "payment_transactions_user_id_foreign")
+
+  @@index([gateway, gateway_transaction_id], map: "payment_transactions_gateway_gateway_transaction_id_index")
+  @@index([gateway_transaction_id], map: "payment_transactions_gateway_transaction_id_index")
+  @@index([subscription_id], map: "payment_transactions_subscription_id_foreign")
+  @@index([user_id], map: "payment_transactions_user_id_foreign")
+  @@map("payment_transactions")
+}
+
+model Permission {
+  id              BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  key             String           @unique(map: "permissions_key_unique") @db.VarChar(255)
+  name            String           @db.VarChar(255)
+  category        String           @db.VarChar(255)
+  description     String?          @db.Text
+  created_at      DateTime?        @db.Timestamp(0)
+  updated_at      DateTime?        @db.Timestamp(0)
+  role_permission RolePermission[]
+
+  @@index([category], map: "permissions_category_index")
+  @@index([key], map: "permissions_key_index")
+  @@map("permissions")
+}
+
+model PhoneNumber {
+  id                   BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id            BigInt?        @db.UnsignedBigInt
+  twilio_sid           String?        @db.VarChar(255)
+  e164_number          String         @db.VarChar(32)
+  friendly_name        String?        @db.VarChar(255)
+  type                 String         @default("local") @db.VarChar(32)
+  source               String         @default("twilio") @db.VarChar(16)
+  sip_trunk_id         BigInt?        @db.UnsignedBigInt
+  agent_id             BigInt?        @db.UnsignedBigInt
+  direction            String         @default("outbound") @db.VarChar(16)
+  country              String?        @db.VarChar(8)
+  monthly_cost_credits Int            @default(50) @db.UnsignedInt
+  purchased_at         DateTime?      @db.Timestamp(0)
+  status               String         @default("active") @db.VarChar(32)
+  capabilities         Json?
+  created_at           DateTime?      @db.Timestamp(0)
+  updated_at           DateTime?      @db.Timestamp(0)
+  call_queue_jobs      CallQueueJob[]
+  calls                Call[]
+  campaigns            Campaign[]
+  inbound_routes       InboundRoute[]
+  agents               Agent?         @relation(fields: [agent_id], references: [id], onUpdate: NoAction, map: "phone_numbers_agent_id_foreign")
+  clients              Client?        @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "phone_numbers_client_id_foreign")
+  sip_trunks           SipTrunk?      @relation(fields: [sip_trunk_id], references: [id], onUpdate: NoAction, map: "phone_numbers_sip_trunk_id_foreign")
+
+  @@index([agent_id], map: "phone_numbers_agent_id_foreign")
+  @@index([client_id, status], map: "phone_numbers_client_status_idx")
+  @@index([e164_number], map: "phone_numbers_e164_number_index")
+  @@index([sip_trunk_id], map: "phone_numbers_sip_trunk_id_foreign")
+  @@index([twilio_sid], map: "phone_numbers_twilio_sid_index")
+  @@map("phone_numbers")
+}
+
+model Plan {
+  id                     BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  name                   String               @db.VarChar(255)
+  slug                   String               @unique(map: "plans_slug_unique") @db.VarChar(255)
+  description            String?              @db.Text
+  price_cents            BigInt               @db.UnsignedBigInt
+  currency_code          String               @db.VarChar(10)
+  monthly_price_cents    BigInt?              @db.UnsignedBigInt
+  yearly_price_cents     BigInt?              @db.UnsignedBigInt
+  trial_days             Int                  @default(0) @db.UnsignedSmallInt
+  stripe_monthly_id      String?              @db.VarChar(255)
+  stripe_yearly_id       String?              @db.VarChar(255)
+  features               Json?
+  limits                 Json?
+  featured               Boolean              @default(false)
+  popular                Boolean              @default(false)
+  ai_credits             Int                  @default(0) @db.UnsignedInt
+  websites_limit         Int                  @default(1) @db.UnsignedInt
+  export_enabled         Boolean              @default(false)
+  custom_domain_enabled  Boolean              @default(false)
+  white_label_enabled    Boolean              @default(false)
+  agents_limit           Int                  @default(1) @db.UnsignedInt
+  campaigns_limit        Int                  @default(1) @db.UnsignedInt
+  contacts_limit         Int                  @default(5) @db.UnsignedInt
+  numbers_limit          Int                  @default(0) @db.UnsignedInt
+  kb_mb_limit            Int                  @default(20) @db.UnsignedInt
+  monthly_bonus_credits  Int                  @default(0) @db.UnsignedInt
+  priority_support       Boolean              @default(false)
+  messaging_enabled      Boolean              @default(false)
+  whatsapp_enabled       Boolean              @default(false)
+  monthly_email_limit    Int                  @default(0) @db.UnsignedInt
+  monthly_whatsapp_limit Int                  @default(0) @db.UnsignedInt
+  api_enabled            Boolean              @default(false)
+  api_keys_limit         Int                  @default(0) @db.UnsignedInt
+  api_rate_limit_per_min Int                  @default(100) @db.UnsignedInt
+  team_seats_limit       Int                  @default(1) @db.UnsignedInt
+  custom_roles_enabled   Boolean              @default(false)
+  sip_enabled            Boolean              @default(false)
+  sip_trunks_limit       Int                  @default(0) @db.UnsignedInt
+  sip_numbers_limit      Int                  @default(0) @db.UnsignedInt
+  sip_concurrency_limit  Int                  @default(5) @db.UnsignedInt
+  interval               String               @default("month") @db.VarChar(20)
+  sort_order             Int                  @default(0) @db.UnsignedInt
+  enabled                Boolean              @default(true)
+  created_at             DateTime?            @db.Timestamp(0)
+  updated_at             DateTime?            @db.Timestamp(0)
+  client_subscriptions   ClientSubscription[]
+  subscriptions          Subscription[]
+
+  @@map("plans")
+}
+
+model PromptTemplate {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id   BigInt?   @db.UnsignedBigInt
+  name        String    @db.VarChar(255)
+  description String?   @db.VarChar(255)
+  category    String    @default("general") @db.VarChar(255)
+  content     String    @db.Text
+  variables   Json?
+  is_system   Boolean   @default(false)
+  usage_count Int       @default(0) @db.UnsignedInt
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+  clients     Client?   @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "prompt_templates_client_id_foreign")
+
+  @@index([client_id, category], map: "prompt_templates_client_id_category_index")
+  @@index([is_system], map: "prompt_templates_is_system_index")
+  @@map("prompt_templates")
+}
+
+model RolePermission {
+  role_id       BigInt     @db.UnsignedBigInt
+  permission_id BigInt     @db.UnsignedBigInt
+  permissions   Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_permission_permission_id_foreign")
+  roles         Role       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "role_permission_role_id_foreign")
+
+  @@id([role_id, permission_id])
+  @@index([permission_id], map: "role_permission_permission_id_foreign")
+  @@map("role_permission")
+}
+
+model Role {
+  id              BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  name            String           @db.VarChar(255)
+  key             String           @unique(map: "roles_key_unique") @db.VarChar(255)
+  description     String?          @db.Text
+  is_system       Boolean          @default(false)
+  created_at      DateTime?        @db.Timestamp(0)
+  updated_at      DateTime?        @db.Timestamp(0)
+  admin_role      AdminRole[]
+  role_permission RolePermission[]
+
+  @@index([key], map: "roles_key_index")
+  @@map("roles")
+}
+
+model Session {
+  id            String  @id @db.VarChar(255)
+  user_id       BigInt? @db.UnsignedBigInt
+  ip_address    String? @db.VarChar(45)
+  user_agent    String? @db.Text
+  payload       String  @db.LongText
+  last_activity Int
+
+  @@index([last_activity], map: "sessions_last_activity_index")
+  @@index([user_id], map: "sessions_user_id_index")
+  @@map("sessions")
+}
+
+model SipTrunk {
+  id                BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id         BigInt        @db.UnsignedBigInt
+  name              String        @db.VarChar(255)
+  provider          String        @default("generic") @db.VarChar(32)
+  engine            String        @default("elevenlabs") @db.VarChar(16)
+  sip_host          String        @db.VarChar(255)
+  sip_port          Int           @default(5060) @db.UnsignedSmallInt
+  transport         String        @default("udp") @db.VarChar(8)
+  username          String?       @db.Text
+  password          String?       @db.Text
+  auth_id           String?       @db.Text
+  inbound_enabled   Boolean       @default(true)
+  outbound_enabled  Boolean       @default(true)
+  concurrency_limit Int           @default(5) @db.UnsignedInt
+  status            String        @default("active") @db.VarChar(16)
+  webhook_secret    String?       @db.VarChar(255)
+  meta              Json?
+  created_at        DateTime?     @db.Timestamp(0)
+  updated_at        DateTime?     @db.Timestamp(0)
+  phone_numbers     PhoneNumber[]
+  clients           Client        @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "sip_trunks_client_id_foreign")
+
+  @@index([client_id], map: "sip_trunks_client_id_foreign")
+  @@map("sip_trunks")
+}
+
+model SmtpConfiguration {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  host       String    @db.VarChar(255)
+  port       Int       @default(587) @db.UnsignedSmallInt
+  username   String    @db.VarChar(255)
+  password   String    @db.Text
+  encryption String    @default("tls") @db.VarChar(16)
+  from_email String    @db.VarChar(255)
+  from_name  String    @db.VarChar(255)
+  is_active  Boolean   @default(false)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+
+  @@map("smtp_configurations")
+}
+
+model Subscription {
+  id                      BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  user_id                 BigInt               @db.UnsignedBigInt
+  plan_id                 BigInt               @db.UnsignedBigInt
+  status                  String               @db.VarChar(32)
+  starts_at               DateTime?            @db.Timestamp(0)
+  ends_at                 DateTime?            @db.Timestamp(0)
+  gateway                 String               @db.VarChar(32)
+  gateway_subscription_id String?              @db.VarChar(255)
+  renews_at               DateTime?            @db.Timestamp(0)
+  created_at              DateTime?            @db.Timestamp(0)
+  updated_at              DateTime?            @db.Timestamp(0)
+  payment_transactions    PaymentTransaction[]
+  plans                   Plan                 @relation(fields: [plan_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "subscriptions_plan_id_foreign")
+  users                   User                 @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "subscriptions_user_id_foreign")
+
+  @@index([gateway_subscription_id], map: "subscriptions_gateway_subscription_id_index")
+  @@index([plan_id], map: "subscriptions_plan_id_foreign")
+  @@index([user_id, status], map: "subscriptions_user_id_status_index")
+  @@map("subscriptions")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model SystemSetting {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  key        String    @unique(map: "system_settings_key_unique") @db.VarChar(128)
+  value      String?   @db.Text
+  is_secret  Boolean   @default(false)
+  group      String?   @db.VarChar(64)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+
+  @@map("system_settings")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Template {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  name       String    @db.VarChar(255)
+  slug       String    @unique(map: "templates_slug_unique") @db.VarChar(128)
+  subject    String?   @db.VarChar(255)
+  type       String    @default("email") @db.VarChar(32)
+  content    String?   @db.Text
+  meta       Json?
+  enabled    Boolean   @default(true)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+
+  @@map("templates")
+}
+
+model TenantUser {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id  BigInt    @db.UnsignedBigInt
+  user_id    BigInt    @db.UnsignedBigInt
+  role       String    @default("member") @db.VarChar(32)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
+  tenants    Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tenant_user_tenant_id_foreign")
+  users      User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "tenant_user_user_id_foreign")
+
+  @@unique([tenant_id, user_id], map: "tenant_user_tenant_id_user_id_unique")
+  @@index([user_id], map: "tenant_user_user_id_foreign")
+  @@map("tenant_user")
+}
+
+model Tenant {
+  id             BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  owner_id       BigInt?      @db.UnsignedBigInt
+  name           String       @db.VarChar(255)
+  default_locale String       @default("en") @db.VarChar(10)
+  currency_code  String?      @db.VarChar(10)
+  created_at     DateTime?    @db.Timestamp(0)
+  updated_at     DateTime?    @db.Timestamp(0)
+  tenant_user    TenantUser[]
+  owner          User?        @relation("tenants_owner_idTousers", fields: [owner_id], references: [id], onUpdate: NoAction, map: "tenants_owner_id_foreign")
+  members        User[]       @relation("users_tenant_idTotenants")
+  websites       Website[]
+
+  @@index([owner_id], map: "tenants_owner_id_foreign")
+  @@map("tenants")
+}
+
+model Translation {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  group       String    @default("app") @db.VarChar(64)
+  key         String    @db.VarChar(255)
+  locale_code String    @db.VarChar(10)
+  value       String?   @db.LongText
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+
+  @@unique([group, key, locale_code], map: "translations_group_key_locale_code_unique")
+  @@index([key], map: "translations_key_index")
+  @@index([locale_code], map: "translations_locale_code_index")
+  @@map("translations")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model User {
+  id                    BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id             BigInt?              @db.UnsignedBigInt
+  tenant_id             BigInt?              @db.UnsignedBigInt
+  name                  String               @db.VarChar(255)
+  email                 String               @unique(map: "users_email_unique") @db.VarChar(255)
+  role                  String               @default("client") @db.VarChar(32)
+  status                String               @default("active") @db.VarChar(32)
+  client_role           String?              @db.VarChar(32)
+  email_verified_at     DateTime?            @db.Timestamp(0)
+  password              String               @db.VarChar(255)
+  remember_token        String?              @db.VarChar(100)
+  locale                String?              @db.VarChar(10)
+  display_currency      String?              @db.VarChar(10)
+  theme                 users_theme          @default(dark)
+  notifications_read_at DateTime?            @db.Timestamp(0)
+  created_at            DateTime?            @db.Timestamp(0)
+  updated_at            DateTime?            @db.Timestamp(0)
+  agents                Agent[]
+  ai_requests           AiRequest[]
+  api_keys              ApiKey[]
+  audit_logs            AuditLog[]
+  campaigns             Campaign[]
+  client_user_role      ClientUserRole[]
+  flows                 Flow[]
+  forms                 Form[]
+  page_revisions        PageRevision[]
+  payment_transactions  PaymentTransaction[]
+  subscriptions         Subscription[]
+  tenant_user           TenantUser[]
+  owned_tenants         Tenant[]             @relation("tenants_owner_idTousers")
+  clients               Client?              @relation(fields: [client_id], references: [id], onUpdate: NoAction, map: "users_client_id_foreign")
+  tenant                Tenant?              @relation("users_tenant_idTotenants", fields: [tenant_id], references: [id], onUpdate: NoAction, map: "users_tenant_id_foreign")
+
+  @@index([client_id], map: "users_client_id_index")
+  @@index([tenant_id], map: "users_tenant_id_foreign")
+  @@map("users")
+}
+
+model Voice {
+  id                BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  external_id       String?        @db.VarChar(255)
+  name              String         @db.VarChar(255)
+  gender            String?        @db.VarChar(32)
+  age_group         String?        @db.VarChar(32)
+  tone              String?        @db.VarChar(64)
+  best_for          String?        @db.VarChar(64)
+  accent            String?        @db.VarChar(64)
+  language          String?        @db.VarChar(16)
+  preview_url       String?        @db.VarChar(255)
+  is_active         Boolean        @default(true)
+  elevenlabs_key_id BigInt?        @db.UnsignedBigInt
+  meta              Json?
+  created_at        DateTime?      @db.Timestamp(0)
+  updated_at        DateTime?      @db.Timestamp(0)
+  agents            Agent[]
+  elevenlabs_keys   ElevenLabsKey? @relation(fields: [elevenlabs_key_id], references: [id], onUpdate: NoAction, map: "voices_elevenlabs_key_id_foreign")
+
+  @@index([elevenlabs_key_id], map: "voices_elevenlabs_key_id_foreign")
+  @@index([external_id], map: "voices_external_id_index")
+  @@map("voices")
+}
+
+model WebhookDelivery {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  webhook_id    BigInt    @db.UnsignedBigInt
+  event         String    @db.VarChar(255)
+  payload       Json?
+  response_code Int?      @db.UnsignedSmallInt
+  attempts      Int       @default(0) @db.UnsignedTinyInt
+  created_at    DateTime? @db.Timestamp(0)
+  updated_at    DateTime? @db.Timestamp(0)
+  webhooks      Webhook   @relation(fields: [webhook_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "webhook_deliveries_webhook_id_foreign")
+
+  @@index([webhook_id], map: "webhook_deliveries_webhook_id_foreign")
+  @@map("webhook_deliveries")
+}
+
+model Webhook {
+  id                 BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id          BigInt            @db.UnsignedBigInt
+  name               String            @db.VarChar(255)
+  target_url         String            @db.VarChar(255)
+  campaign_id        BigInt?           @db.UnsignedBigInt
+  events             Json?
+  secret             String?           @db.VarChar(255)
+  is_active          Boolean           @default(true)
+  last_delivery_at   DateTime?         @db.Timestamp(0)
+  last_status        String?           @db.VarChar(32)
+  created_at         DateTime?         @db.Timestamp(0)
+  updated_at         DateTime?         @db.Timestamp(0)
+  webhook_deliveries WebhookDelivery[]
+  campaigns          Campaign?         @relation(fields: [campaign_id], references: [id], onUpdate: NoAction, map: "webhooks_campaign_id_foreign")
+  clients            Client            @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "webhooks_client_id_foreign")
+
+  @@index([campaign_id], map: "webhooks_campaign_id_foreign")
+  @@index([client_id], map: "webhooks_client_id_foreign")
+  @@map("webhooks")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model WebsiteTemplate {
+  id             BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  name           String    @db.VarChar(255)
+  industry       String?   @db.VarChar(64)
+  preview_images Json?
+  pages_json     Json?
+  is_public      Boolean   @default(true)
+  sort_order     Int       @default(0) @db.UnsignedSmallInt
+  created_at     DateTime? @db.Timestamp(0)
+  updated_at     DateTime? @db.Timestamp(0)
+
+  @@map("website_templates")
+}
+
+model WebsiteWidget {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id       BigInt    @unique(map: "website_widgets_client_id_unique") @db.UnsignedBigInt
+  agent_id        BigInt?   @db.UnsignedBigInt
+  title           String    @default("Chat with us") @db.VarChar(255)
+  welcome_message String?   @db.VarChar(255)
+  primary_color   String    @default("#6d3fea") @db.VarChar(255)
+  position        String    @default("bottom-right") @db.VarChar(255)
+  enabled         Boolean   @default(false)
+  public_token    String    @unique(map: "website_widgets_public_token_unique") @db.VarChar(255)
+  created_at      DateTime? @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
+  agents          Agent?    @relation(fields: [agent_id], references: [id], onUpdate: NoAction, map: "website_widgets_agent_id_foreign")
+  clients         Client    @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "website_widgets_client_id_foreign")
+
+  @@index([agent_id], map: "website_widgets_agent_id_foreign")
+  @@map("website_widgets")
+}
+
+model Website {
+  id               BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  tenant_id        BigInt      @db.UnsignedBigInt
+  name             String      @db.VarChar(255)
+  slug             String      @db.VarChar(255)
+  status           String      @default("draft") @db.VarChar(32)
+  published_url    String?     @db.VarChar(255)
+  custom_domain    String?     @db.VarChar(255)
+  default_locale   String      @default("en") @db.VarChar(10)
+  default_currency String?     @db.VarChar(10)
+  industry         String?     @db.VarChar(64)
+  created_at       DateTime?   @db.Timestamp(0)
+  updated_at       DateTime?   @db.Timestamp(0)
+  ai_requests      AiRequest[]
+  domains          Domain[]
+  pages            Page[]
+  tenants          Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "websites_tenant_id_foreign")
+
+  @@unique([tenant_id, slug], map: "websites_tenant_id_slug_unique")
+  @@map("websites")
+}
+
+model WhatsAppAccount {
+  id                 BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id          BigInt             @db.UnsignedBigInt
+  provider           String             @default("meta") @db.VarChar(16)
+  label              String?            @db.VarChar(255)
+  waba_id            String?            @db.VarChar(255)
+  phone_number_id    String?            @db.VarChar(255)
+  display_number     String?            @db.VarChar(255)
+  access_token       String?            @db.Text
+  api_key            String?            @db.Text
+  base_url           String?            @db.VarChar(255)
+  status             String             @default("connected") @db.VarChar(16)
+  quality_rating     String?            @db.VarChar(255)
+  messaging_tier     String?            @db.VarChar(255)
+  verified           Boolean            @default(false)
+  meta               Json?
+  created_at         DateTime?          @db.Timestamp(0)
+  updated_at         DateTime?          @db.Timestamp(0)
+  conversations      Conversation[]
+  clients            Client             @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "whatsapp_accounts_client_id_foreign")
+  whatsapp_templates WhatsAppTemplate[]
+
+  @@index([client_id], map: "whatsapp_accounts_client_id_foreign")
+  @@map("whatsapp_accounts")
+}
+
+model WhatsAppTemplate {
+  id                  BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  client_id           BigInt           @db.UnsignedBigInt
+  whatsapp_account_id BigInt?          @db.UnsignedBigInt
+  name                String           @db.VarChar(255)
+  language            String           @default("en_US") @db.VarChar(16)
+  category            String?          @db.VarChar(255)
+  components          Json?
+  status              String           @default("approved") @db.VarChar(16)
+  created_at          DateTime?        @db.Timestamp(0)
+  updated_at          DateTime?        @db.Timestamp(0)
+  clients             Client           @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "whatsapp_templates_client_id_foreign")
+  whatsapp_accounts   WhatsAppAccount? @relation(fields: [whatsapp_account_id], references: [id], onUpdate: NoAction, map: "whatsapp_templates_whatsapp_account_id_foreign")
+
+  @@index([client_id], map: "whatsapp_templates_client_id_foreign")
+  @@index([whatsapp_account_id], map: "whatsapp_templates_whatsapp_account_id_foreign")
+  @@map("whatsapp_templates")
+}
+
+enum users_theme {
+  dark
+  light
+}
