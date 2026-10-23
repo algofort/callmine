@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build && node scripts/check-assets.mjs",
+    "check:assets": "node scripts/check-assets.mjs",
     "start": "next start",
     "lint": "next lint",
     "db:pull": "prisma db pull",
